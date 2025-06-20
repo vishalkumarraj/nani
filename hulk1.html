@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Car Game</title>
+<style>
+  body {
+    margin: 0;
+    background: #111;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+    font-family: Arial, sans-serif;
+  }
+  #game {
+    position: relative;
+    width: 300px;
+    height: 500px;
+    background: #444;
+    border: 2px solid #222;
+    overflow: hidden;
+  }
+  #car {
+    position: absolute;
+    bottom: 20px;
+    left: 130px;
+    width: 40px;
+    height: 70px;
+    background: red;
+    border-radius: 10px;
+    transition: left 0.1s;
+  }
+  .obstacle {
+    position: absolute;
+    width: 50px;
+    height: 70px;
+    background: green;
+    top: -80px;
+    border-radius: 10px;
+  }
+  #score {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="score">Score: 0</div>
+  <div id="car"></div>
+</div>
+
+<script>
+  const game = document.getElementById('game');
+  const car = document.getElementById('car');
+  const scoreDisplay = document.getElementById('score');
+
+  const gameWidth = 300;
+  const carWidth = 40;
+  let carPosition = 130; // starting left position
+  const moveStep = 30; // how much car moves left/right
+
+  let obstacles = [];
+  let score = 0;
+  let gameOver = false;
+
+  // Move car left or right
+  window.addEventListener('keydown', e => {
+    if (gameOver) return;
+
+    if (e.key === 'ArrowLeft') {
+      carPosition = Math.max(0, carPosition - moveStep);
+      car.style.left = carPosition + 'px';
+    } else if (e.key === 'ArrowRight') {
+      carPosition = Math.min(gameWidth - carWidth, carPosition + moveStep);
+      car.style.left = carPosition + 'px';
+    }
+  });
+
+  // Create new obstacle
+  function createObstacle() {
+    const obstacle = document.createElement('div');
+    obstacle.classList.add('obstacle');
+    // Random horizontal position (0, 50, 100, 150, 200, 250)
+    obstacle.style.left = (Math.floor(Math.random() * 6) * 50) + 'px';
+    obstacle.style.top = '-80px';
+    game.appendChild(obstacle);
+    obstacles.push(obstacle);
+  }
+
+  // Move obstacles down and check for collision
+  function updateObstacles() {
+    obstacles.forEach((obstacle, index) => {
+      let top = parseInt(obstacle.style.top);
+      top += 5; // speed of obstacle
+      obstacle.style.top = top + 'px';
+
+      // Remove obstacle if out of screen
+      if (top > 500) {
+        obstacle.remove();
+        obstacles.splice(index, 1);
+        score++;
+        scoreDisplay.textContent = 'Score: ' + score;
+      }
+
+      // Check collision with car
+      if (
+        top + 70 > 430 && // car top = 430px (500 - 70 - 20)
+        top < 500 &&
+        parseInt(obstacle.style.left) === carPosition
+      ) {
+        endGame();
+      }
+    });
+  }
+
+  // End game function
+  function endGame() {
+    alert('Game Over! Your score: ' + score);
+    gameOver = true;
+    location.reload();
+  }
+
+  // Game loop
+  function gameLoop() {
+    if (gameOver) return;
+    updateObstacles();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Create obstacles every 1.5 seconds
+  setInterval(() => {
+    if (!gameOver) createObstacle();
+  }, 1500);
+
+  gameLoop();
+</script>
+
+</body>
+</html>
