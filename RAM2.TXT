@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Doctor Drive Game</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  .game-container {
+    position: relative;
+    width: 320px;
+    height: 600px;
+    background: linear-gradient(to bottom, #555 0%, #222 100%);
+    overflow: hidden;
+    border: 3px solid #888;
+    border-radius: 10px;
+  }
+  .road {
+    position: absolute;
+    width: 200px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #444;
+    overflow: hidden;
+  }
+  /* Road lane lines */
+  .lane-line {
+    position: absolute;
+    width: 10px;
+    height: 50px;
+    background: white;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: moveRoad 1s linear infinite;
+  }
+  .lane-line:nth-child(1) { top: 0; }
+  .lane-line:nth-child(2) { top: 100px; }
+  .lane-line:nth-child(3) { top: 200px; }
+  .lane-line:nth-child(4) { top: 300px; }
+  .lane-line:nth-child(5) { top: 400px; }
+  .lane-line:nth-child(6) { top: 500px; }
+
+  @keyframes moveRoad {
+    0% { top: 0; }
+    100% { top: 600px; }
+  }
+
+  /* Player Car */
+  #player {
+    position: absolute;
+    width: 50px;
+    height: 100px;
+    background: red;
+    bottom: 30px;
+    left: calc(50% - 25px);
+    border-radius: 10px;
+    box-shadow: 0 0 15px red;
+  }
+  /* Player windows */
+  #player::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 10px;
+    width: 30px;
+    height: 40px;
+    background: #a3d8f4;
+    border-radius: 8px;
+    box-shadow: inset 0 0 5px #55aadd;
+  }
+
+  /* Enemy cars */
+  .enemy {
+    position: absolute;
+    width: 50px;
+    height: 100px;
+    background: blue;
+    border-radius: 10px;
+    box-shadow: 0 0 15px blue;
+    top: -120px;
+  }
+  .enemy::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 10px;
+    width: 30px;
+    height: 40px;
+    background: #55aaff;
+    border-radius: 8px;
+    box-shadow: inset 0 0 5px #5599dd;
+  }
+
+  /* Score display */
+  #score {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 1px 1px 3px black;
+    user-select: none;
+  }
+
+  /* Game over text */
+  #gameOver {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: red;
+    font-size: 36px;
+    font-weight: bold;
+    text-align: center;
+    display: none;
+    user-select: none;
+  }
+
+  /* Start Button */
+  #startBtn {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    background: green;
+    color: white;
+    font-size: 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  #startBtn:hover {
+    background: darkgreen;
+  }
+</style>
+</head>
+<body>
+
+<div class="game-container" id="gameContainer" tabindex="0">
+  <div class="road">
+    <div class="lane-line"></div>
+    <div class="lane-line"></div>
+    <div class="lane-line"></div>
+    <div class="lane-line"></div>
+    <div class="lane-line"></div>
+    <div class="lane-line"></div>
+  </div>
+  <div id="player"></div>
+  <div id="score">Score: 0</div>
+  <div id="gameOver">Game Over<br>Press Restart</div>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<script>
+  const gameContainer = document.getElementById('gameContainer');
+  const player = document.getElementById('player');
+  const scoreDisplay = document.getElementById('score');
+  const gameOverText = document.getElementById('gameOver');
+  const startBtn = document.getElementById('startBtn');
+
+  const roadWidth = 200;
+  const playerWidth = 50;
+  const playerHeight = 100;
+  const gameWidth = gameContainer.clientWidth;
+
+  let gameRunning = false;
+  let score = 0;
+  let playerX = (gameWidth / 2) - (playerWidth / 2);
+  let keys = {};
+  let enemyCars = [];
+  let enemySpeed = 5;
+  let enemySpawnInterval;
+  let gameLoopId;
+
+  // Allowed lanes (x positions relative to gameContainer)
+  const lanes = [
+    (gameWidth / 2) - 90,
+    (gameWidth / 2) - 30,
+    (gameWidth / 2) + 30,
+    (gameWidth / 2) + 90 - playerWidth
+  ];
+
+  // Clamp playerX in lane limits
+  function clampPlayerX(x) {
+    if (x < lanes[0]) return lanes[0];
+    if (x > lanes[lanes.length - 1]) return lanes[lanes.length - 1];
+    return x;
+  }
+
+  // Initialize player position
+  function resetPlayer() {
+    playerX = lanes[1];
+    player.style.left = playerX + 'px';
+    player.style.bottom = '30px';
+  }
+
+  // Create enemy car element
+  function createEnemy() {
+    const enemy = document.createElement('div');
+    enemy.classList.add('enemy');
+    // Random lane
+    const laneIndex = Math.floor(Math.random() * lanes.length);
+    enemy.style.left = lanes[laneIndex] + 'px';
+    enemy.style.top = '-120px';
+    gameContainer.appendChild(enemy);
+    return enemy;
+  }
+
+  // Move enemy cars down
+  function moveEnemies() {
+    enemyCars.forEach((enemy, index) => {
+      let top = parseInt(enemy.style.top);
+      if (isNaN(top)) top = -120;
+
+      top += enemySpeed;
+      enemy.style.top = top + 'px';
+
+      // Remove enemy if it goes out of view
+      if (top > gameContainer.clientHeight) {
+        enemy.remove();
+        enemyCars.splice(index, 1);
+        score += 10;
+        scoreDisplay.textContent = 'Score: ' + score;
+      }
+
+      // Check collision
+      if (isCollision(player, enemy)) {
+        endGame();
+      }
+    });
+  }
+
+  // Check collision between two elements
+  function isCollision(el1, el2) {
+    const r1 = el1.getBoundingClientRect();
+    const r2 = el2.getBoundingClientRect();
+
+    return !(
+      r1.top > r2.bottom ||
+      r1.bottom < r2.top ||
+      r1.right < r2.left ||
+      r1.left > r2.right
+    );
+  }
+
+  // Handle player movement based on keys pressed
+  function movePlayer() {
+    if (keys['ArrowLeft']) {
+      playerX -= 10;
+      playerX = clampPlayerX(playerX);
+      player.style.left = playerX + 'px';
+    }
+    if (keys['ArrowRight']) {
+      playerX += 10;
+      playerX = clampPlayerX(playerX);
+      player.style.left = playerX + 'px';
+    }
+  }
+
+  // Game loop
+  function gameLoop() {
+    if (!gameRunning) return;
+    movePlayer();
+    moveEnemies();
+    gameLoopId = requestAnimationFrame(gameLoop);
+  }
+
+  // Start spawning enemies
+  function startSpawningEnemies() {
+    enemySpawnInterval = setInterval(() => {
+      if (!gameRunning) return;
+      const enemy = createEnemy();
+      enemyCars.push(enemy);
+    }, 1500);
+  }
+
+  // Stop spawning enemies
+  function stopSpawningEnemies() {
+    clearInterval(enemySpawnInterval);
+  }
+
+  // Start game function
+  function startGame() {
+    if (gameRunning) return;
+    gameRunning = true;
+    score = 0;
+    scoreDisplay.textContent = 'Score: 0';
+    gameOverText.style.display = 'none';
+    startBtn.style.display = 'none';
+
+    // Clear existing enemies
+    enemyCars.forEach(e => e.remove());
+    enemyCars = [];
+
+    resetPlayer();
+    startSpawningEnemies();
+    gameLoop();
+    gameContainer.focus();
+  }
+
+  // End game function
+  function endGame() {
+    gameRunning = false;
+    stopSpawningEnemies();
+    cancelAnimationFrame(gameLoopId);
+    gameOverText.style.display = 'block';
+    startBtn.style.display = 'block';
+  }
+
+  // Event listeners for keys
+  window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+  });
+
+  window.addEventListener('keyup', e => {
+    keys[e.key] = false;
+  });
+
+  startBtn.addEventListener('click', startGame);
+
+  // Focus game container on load
+  window.onload = () => {
+    gameContainer.focus();
+  };
+</script>
+</body>
+</html>
